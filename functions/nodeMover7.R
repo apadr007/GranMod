@@ -1,3 +1,17 @@
+#wc = walktrap.community(g)
+#wc$membership
+#names(wc$membership) <- 1:node_number
+
+##this gets me the members inside each community. 
+##Note it is already ordered so the smallest is the first node
+
+#gran.length <- length(table(wc$membership)[table(wc$membership) >= 1])
+
+#gran.members <- lapply(1:gran.length, function(x) as.numeric(names(wc$membership[wc$membership == x])))
+
+index.m <- matrix(1:5)
+rownames(index.m) <- c("A","B","C","D", "E")
+
 nodeMover7b = function(layout.old, g, node_number, spaceMax){
   wc = walktrap.community(g)
   wc$membership
