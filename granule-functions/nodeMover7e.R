@@ -1,4 +1,4 @@
-nodeMover7d = function(layout.old, g, node_number, spaceMax){
+nodeMover7e = function(layout.old, g, node_number, spaceMax){
   wc = walktrap.community(g)
   wc$membership
   names(wc$membership) <- 1:node_number
@@ -16,8 +16,8 @@ nodeMover7d = function(layout.old, g, node_number, spaceMax){
   
   out = list()
   
-  v.val = valency_func(g, node_number)
-  v.val2 = which(v.val[,2] >= 2)
+  #v.val = valency_func(g, node_number)
+  #v.val2 = which(v.val[,2] >= 2)
   
   possibleMoves = 1:4
   
@@ -47,7 +47,7 @@ nodeMover7d = function(layout.old, g, node_number, spaceMax){
     
     m = as.matrix(rbind(A, B, C, D))
     
-    v.val3 = valency_func(g, node_number)[mover, 2]
+    #v.val3 = valency_func(g, node_number)[mover, 2]
     
     #m <- boundaryFunc.rnp(m, spaceMax)
     #}
@@ -57,7 +57,8 @@ nodeMover7d = function(layout.old, g, node_number, spaceMax){
     #m <- unique(m)
     layout.Gran <- layout.old[-gran.members[[move]],] ## this removes members of the same community when I'm checking for overlap! 
     
-    if (length(gran.members[[move]]) > 1){ truefalse = apply(m,MARGIN = 1, layoutOverlapFinder, m = layout.Gran)  } else { truefalse = apply(m,MARGIN = 1, layoutOverlapFinder, m = layout.old)}
+    #if (length(gran.members[[move]]) > 1){ truefalse = apply(m,MARGIN = 1, layoutOverlapFinder, m = layout.Gran)  } else { truefalse = apply(m,MARGIN = 1, layoutOverlapFinder, m = layout.old)}
+    if (length(mover.m) > 1){ truefalse = apply(m,MARGIN = 1, layoutOverlapFinder.v, m = layout.Gran)  } else { truefalse = apply(m,MARGIN = 1, layoutOverlapFinder.v, m = layout.old)}
     
     truefalse[length(truefalse)+1] = FALSE
     names(truefalse) = c("A", "B", "C", "D", "E")
@@ -97,18 +98,28 @@ nodeMover7d = function(layout.old, g, node_number, spaceMax){
       #df.list <- layout.old[ gran.members[[move]], ] 
       #  }
       
-      df.list <- lapply( seq_len(nrow(df.list)), function(i) df.list[i,] ) #converts df.list to list from matrix
+      # df.list <- lapply( seq_len(nrow(df.list)), function(i) df.list[i,] ) #converts df.list to list from matrix
       
       df.truefalse = matrix()
       # df.truefalse2 = matrix()
-      for ( i in 1:length(df.list) ){ df.truefalse[i] = layoutOverlapFinder(layout.Gran, df.list[[i]] ) }
+      
+      if ( is.vector(df.list) ){
+        df.truefalse <- layoutOverlapFinder.v(layout.old, df.list)
+      } else {  
+        df.truefalse <- v.tester( layoutOverlapFinder.m(layout.old, df.list) )
+        df.truefalse <- as.logical(df.truefalse) }
+      
+      
+      #for ( i in 1:length(df.list) ){ df.truefalse[i] = layoutOverlapFinder(layout.Gran, df.list[[i]] ) }
+      
+      
       #for ( i in 1:length(df.list) ){ df.truefalse2[i] = layoutOverlapFinder(layout.old, df.list[[i]] ) }
       ###if ( isTRUE(df.truefalse)==FALSE ) { next }
       
       if(any(df.truefalse) ) { next }
       #if(any(df.truefalse2) ) { next }
       
-      df.list = do.call(rbind, df.list)
+     # df.list = do.call(rbind, df.list)
       df.list <- as.data.frame(df.list)
       df.list$V3 = posit.move
       ###testr = which(df.truefalse==FALSE)
@@ -138,13 +149,20 @@ nodeMover7d = function(layout.old, g, node_number, spaceMax){
       #if (layoutOverlapFinder(layout.Gran, df.list)==TRUE ) { next }
       #if(any(apply(df.list,MARGIN = 1, layoutOverlapFinder, m = layout.Gran))) {next}
       
-      df.list <- lapply(seq_len(nrow(df.list)), function(i) df.list[i,]) #converts df.list to list from matrix
+      #df.list <- lapply(seq_len(nrow(df.list)), function(i) df.list[i,]) #converts df.list to list from matrix
       df.truefalse = matrix()
-      for ( i in 1:length(df.list) ){ df.truefalse[i] = layoutOverlapFinder(layout.Gran, df.list[[i]] ) }
+      
+      if ( is.vector(df.list) ){
+        df.truefalse <- layoutOverlapFinder.v(layout.old, df.list)
+      } else {  
+        df.truefalse <- v.tester( layoutOverlapFinder.m(layout.old, df.list) )
+        df.truefalse <- as.logical(df.truefalse) }
+      
+      #for ( i in 1:length(df.list) ){ df.truefalse[i] = layoutOverlapFinder(layout.Gran, df.list[[i]] ) }
       
       if( any(df.truefalse)==TRUE ) {next}
       
-      df.list = do.call(rbind, df.list)
+      #df.list = do.call(rbind, df.list)
       df.list <- as.data.frame(df.list)
       df.list$V3 = posit.move
       testr = which(df.truefalse==FALSE)
@@ -152,7 +170,7 @@ nodeMover7d = function(layout.old, g, node_number, spaceMax){
         idx.val <- index.m[posit.move, drop=FALSE,]
         idx.val2 = sample(rownames(idx.val))[1]
         idx.val3 = df.list[df.list$V3 == idx.val2,1:2]
-        layout.old[gran.members[[move]], ] <- as.matrix(idx.val3) }
+        layout.old[gran.members[[move]], ] <- as.numeric(idx.val3) }
     }
   }
   return(layout.old)

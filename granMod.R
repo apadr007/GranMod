@@ -1,19 +1,12 @@
-node_number = 30
-spaceMax = 10
-
-#x=seq(0, spaceMax, 1)
-#length(x)
-#layout.old <- expand.grid(x,x)
-#row(layout.old)
-#layout.old <- layoutGetter(layout.old, node_number)
-
+node_number = 50
+spaceMax = 25
 
 g=graph.empty(node_number,directed = FALSE)
 valency = c(1,2,3,4,5,6)
 total_time = 1
 V(g)$color = 'lightblue'
-P.int.on = 0.4
-P.int.off = 0.6
+P.int.on = 0.6
+P.int.off = 0.4
 
 layout.old = layoutGen(node_number, spaceMax)
 names = 1:node_number
@@ -29,11 +22,11 @@ gran_pop = list()
 strt<-Sys.time()
 
 total_time = 1
-while(total_time <= 50){ 
+while(total_time <= 10){ 
   mRNA = 1:node_number 
   mRNA = which(!mRNA%in%which(degree(g) > 6)) 
   
-  layout.old = nodeMover7d(layout.old, g, node_number, spaceMax)
+  layout.old = nodeMover7e(layout.old, g, node_number, spaceMax)
   #if ( any(duplicated(layout.old)) ) { break }
   nearest.mRNA2 = findNearestMovers4(layout.old) # this finds the nearest nodes to every other node
   
