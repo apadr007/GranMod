@@ -1,6 +1,8 @@
 cleaner.valency2 = function(nearest.mRNA_list, mRNP.rate){
   output = list()
   
+  if( isEmpty(nearest.mRNA2) ){ return(0) }
+  
   for (i in 1:length(nearest.mRNA_list)){
     
     filter <- sample(0:1, 1, prob = c(1-mRNP.rate, mRNP.rate) )
