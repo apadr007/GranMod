@@ -21,23 +21,40 @@ nodeMover7d = function(layout.old, g, node_number, spaceMax){
   
   possibleMoves = 1:4
   
+  vx = 1
+  vy = 1
+  t = 1e-3
+  sigma.x = vx*t
+  sigma.y = vy*t
+  
   for (move in 1:gran.length) {
+
     out2 = list(); truefalse = matrix(); o.avail = list(); 
-    x = NA; y = NA; v.old = NA; x.old = NA; y.old = NA 
-    x1 = NA; x2 = NA; y1 = NA; y2 = NA; v = NA; v3 = NA
-    direction = NA; A=NA;B=NA;C=NA;D=NA; truefalse = NA
-    x10.dupName = NA; idx.val3=NA
+    
+    #x = NA; y = NA; v.old = NA; x.old = NA; y.old = NA 
+    #x1 = NA; x2 = NA; y1 = NA; y2 = NA; v = NA; v3 = NA
+    #direction = NA; A=NA;B=NA;C=NA;D=NA; truefalse = NA
+    #x10.dupName = NA; idx.val3=NA
+    
     #print(move)
+    sigma.test.x <- sample(c(TRUE,FALSE), size = 1, prob = c(sigma.x, 1-sigma.x))
+    sigma.test.y <- sample(c(TRUE,FALSE), size = 1, prob = c(sigma.y, 1-sigma.y))
+    
+    sigma.test = c(sigma.test.x, sigma.test.y)
+    if (all(sigma.test)==FALSE) next
+    
+    val.x <- ifelse(sigma.test.x, 1, 0)
+    val.y <- ifelse(sigma.test.y, 1, 0)
     
     mover <- gran.members[[move]][1]
     v.old <- layout.old[mover, ]
     x = layout.old[mover,1]
     y = layout.old[mover,2]  
     
-    x1 = x + 1
-    x2 = x - 1
-    y1 = y + 1
-    y2 = y - 1
+    x1 = x + val.x
+    x2 = x - val.x
+    y1 = y + val.y
+    y2 = y - val.y
     
     A = c(x1, y)
     B = c(x2, y)
