@@ -33,7 +33,7 @@ cleaner.valency2 = function(nearest.mRNA_list, mRNP.rate){
       } else if (valency.node <= length(new.edge)){
         new.edgeToForm <- new.edge[1:valency.node]
         output[[i]] = new.edgeToForm }
-    } else { output[[i]] <- 0 }
+    } else { output[[i]] <- integer(0) }
   }
   return(output)
 }
