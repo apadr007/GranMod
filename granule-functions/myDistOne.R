@@ -7,3 +7,12 @@ myDistOne = function(m) {
     t2[which(abs(v2[x] - v2[t2]) <= 1)]
   })
 }
+
+myfun = function(x){
+  doo <- function(j) {
+    j.mat <- matrix(rep(j, length = length(x)), ncol = ncol(x), byrow = TRUE)
+    j.abs <- abs(j.mat - x)
+    return(which(rowSums(j.abs) == 1))
+  }
+  return(apply(x, 1, doo))
+}

@@ -1,8 +1,9 @@
-edgeRemoverSpace= function(g, layout.old){
+edgeRemoverSpace3 = function(g, layout.old){
+  f = myDistOneFast(layout.old)
+  n <- lapply(1:nrow(layout.old), neighbors, graph=g)
+  
   for (v in 1:nrow(layout.old)){
-    n = neighbors(g, v)
-    f = myDistOneFast(layout.old)[[v]]
-    b = which( !n%in%f)
+    b = which( !n[[v]]%in%f[[v]] )
     if (isEmpty(b)==FALSE){
       for ( i in 1:length(b) ) {
         b.idx = b[i]
