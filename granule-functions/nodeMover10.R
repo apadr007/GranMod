@@ -5,45 +5,21 @@ nodeMover10 <- function(layout.old, g, node_number, spaceMax){
   gran.length <- length(table(wc$membership)[table(wc$membership) >= 1])
   gran.members <- lapply(1:gran.length, function(x) as.numeric(names(wc$membership[wc$membership == x])))
   
+  indexSelector <- sample(1:length(gran.members), 1)
+  
   index.m <- matrix(1:5)
   rownames(index.m) <- c("A","B","C","D", "E")
   
   out = list()
-  
   possibleMoves = 1:4
   
-  vx = 1
-  vy = 1
-  t = 1e-3
-  sigma.x = vx*t
-  sigma.y = vy*t
+#  vx = 1
+#  vy = 1
+#  t = 1e-3
+#  sigma.x = vx*t
+#  sigma.y = vy*t
   
-  moving <- do.call(cbind, gran.members)[1,1:length(gran.members)]
-  moveX <- as.logical(rbinom(length(moving), size = length(x), sigma.x))
-  moveY <- as.logical(rbinom(length(moving), size = length(x), sigma.y))
-  
-  gran.members.x <- gran.members[moveX]
-  gran.members.y <- gran.members[moveY]
-  
-  bigList <- list( setdiff(gran.members.x, gran.members.y),  
-                   setdiff(gran.members.y, gran.members.x), 
-                   intersect(gran.members.x, gran.members.y) )
-  
-  dirToMove <- lapply(bigList, isEmpty)
-  
-  dirToMove.index <- which(dirToMove==FALSE)
-
-  if (dirToMove.index == 1){
-    toMove <- c(TRUE,FALSE)
-  } else if (dirToMove.index == 2) {
-    toMove <- c(FALSE,TRUE)
-  } else if (dirToMove.index == 3) {
-    toMove <- c(TRUE,TRUE)
-  }
-  
-  moving_fin <- cbind(moveX, moveY)
-  
-  for (move in 1:gran.length) {
+  for (move in indexSelector) {
     
     out2 = list(); truefalse = matrix(); o.avail = list() 
     x = NA; y = NA; v.old = NA; x.old = NA; y.old = NA 
@@ -110,14 +86,22 @@ nodeMover10 <- function(layout.old, g, node_number, spaceMax){
       
       # print(posit.move)
       df.list = reflectFunc2b(layout.old[gran.members[[move]], ], spaceMax, posit.move)
-      # print('at reflectfunc2')
-      # print(posit.move)
-      # print(df.list)
+      
+      
       df.list_1 = df.list[[1]]
       posit.move = df.list[[2]]
       boundResp <- indexLookUp3(df.list_1, posit.move, spaceMax)
+      
       df.list <- boundResp[[1]]
       posit.move <- boundResp[[2]]
+      
+      #if ( any(abs(df.list - layout.old[gran.members[[move]], ]) >= 2)) next
+      if ( any(rowSums( abs(df.list - layout.old[gran.members[[move]], ]) ) > 1) ) {
+        df.list = reflectFunc2b(layout.old[gran.members[[move]], ], spaceMax, posit.move)
+        posit.move <- df.list[[2]]
+        df.list <- df.list[[1]]
+      }
+      
       # print('at indexlookup3')
       # print(posit.move)
       

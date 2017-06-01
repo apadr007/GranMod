@@ -1,10 +1,18 @@
-source('~/granule-functions/layoutOverlapFinder_v.R')
+#source('~/granule-functions/layoutOverlapFinder_v.R')
 library(igraph)
 library(reshape2)
 
+load.functions <- list.files('~/granule-functions', full.names = TRUE)
+for (i in 1:length(load.functions)){
+  source(load.functions[i])
+}
+
+
 set.seed(10)
-node_number = 20
-spaceMax = 10
+start.time <- Sys.time()
+node_number = 500
+spaceMax = 40
+
 
 g=graph.empty(node_number,directed = FALSE)
 
@@ -14,14 +22,14 @@ V(g)$color = 'lightblue'
 #P.int.on = 0.1
 
 #time 
-t = 1e-3
+t = 1e-2
 
 #movement
 vel = 1
 sigma = vel*t
 
 #reaction
-k_on = 1e-2
+k_on = 1e-1
 sigma.kon = k_on*t
 P.int.on <- sigma.kon
 #reaction
@@ -35,8 +43,14 @@ layout.old = layout.old[[1]][,1:2]
 plot(g, layout = layout.old,
        rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
 
-RunLength = 500
+# This makes 500 time steps
+#Run <- rep(1:20, 25)
+#get total length 
+#RunLength = length(Run)
+#nodez <- Run
+RunLength = 1000
 
+gran_pop = vector('list', RunLength)
 mRNP_pop = vector("list", RunLength ) 
 mRNA_pop = vector("list", RunLength ) 
 layout_list = vector("list", RunLength ) 
@@ -46,36 +60,39 @@ g_list = vector("list", RunLength )
 total_time = 1
 
 while(total_time <= RunLength){ 
-  mRNA = 1:node_number
+  #mRNA = 1:node_number
+  #mRNA = which(!mRNA%in%which(degree(g) > 4))
   
-  mRNA = which(!mRNA%in%which(degree(g) > 4))
-  
+  mRNA <- sample(1:20, 1)
   whatToDo <- sample(1:3, 1, prob = c(sigma, P.int.on, P.int.off) )
   
   #sigma.test <- sample(c(TRUE,FALSE), size = 1, prob = c(sigma, 1-sigma))
   #if (sigma.test == TRUE){
   
   if (whatToDo == 1){
-    layout.old = nodeMover9(layout.old, g, node_number, spaceMax)
+    layout.old = nodeMover10(layout.old, g, node_number, spaceMax)
    }
   
   if (whatToDo == 2){
     # this finds the nearest nodes to every other node
-    nearest.mRNA2 = myDistOneFast(layout.old) 
-  
-    nearest.mRNA2[ sapply(nearest.mRNA2, is.null) ] <- NA
+    #nearest.mRNA2 = myDistOneFast(layout.old) 
+    #nearest.mRNA2[ sapply(nearest.mRNA2, is.null) ] <- NA
+    #nearest.mRNA2 <- as.list(nearest.mRNA2)
     
-    nearest.mRNA2 <- as.list(nearest.mRNA2)
-  
-    nearest.mRNA3 = cleaner.valency4(nearest.mRNA2, P.int.on)
+    x <- indexLookUp(mRNA, c('A', 'B', 'C', 'D'), layout.old)
+    optionsToBind <- x[layoutOverlapFinder.m(layout.old, x) == 1,]
+    optionsToBind <- `if`(isEmpty(optionsToBind), layout.old[mRNA, ], optionsToBind)
+    optionsToBind <- `if`( is.null( nrow(optionsToBind) ), optionsToBind , optionsToBind[sample(1:nrow(optionsToBind), 1),] )
+    
+    #nearest.mRNA3 = cleaner.valency4(nearest.mRNA2, P.int.on)
     #this deletes an edge if its a neighbor BUT not found in findNearestMovers
-    g <- edgeRemoverSpace2(g, layout.old ) 
+    g <- edgeRemoverSpace3(g, layout.old )
     
-    
-    nearest.mRNA3 <- melt(nearest.mRNA3, na.rm = TRUE)
-    nearest.mRNA3 <- as.matrix(nearest.mRNA3)
-    g = add.edges(g, t(nearest.mRNA3) )
-  
+    #nearest.mRNA3 <- melt(nearest.mRNA3, na.rm = TRUE)
+    #nearest.mRNA3 <- melt(optionsToBind, na.rm = TRUE)
+    #nearest.mRNA3 <- as.matrix(nearest.mRNA3)
+    indexFound <- indexFinder(layout.old, optionsToBind)
+    g = add.edges(g, c(mRNA, indexFound) )
     g = simplify(g, remove.loops = TRUE)
   }
   
@@ -96,10 +113,10 @@ while(total_time <= RunLength){
   V(g)$color[degree(g) >= 1] <- 'orange'
   V(g)$color[degree(g) < 1] <- 'lightblue'
 
-  g <- edgeRemoverSpace2(g, layout.old ) 
+  g <- edgeRemoverSpace3(g, layout.old ) 
   
-  plot(g, layout = layout.old,
-       rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
+ # plot(g, layout = layout.old,
+ #      rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
   
   gran_pop[[total_time]] = walktrap.community(g)
   mRNP_pop[[total_time]] = which(degree(g) >= 1)
@@ -115,10 +132,14 @@ while(total_time <= RunLength){
 
   } 
 
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
 Num.Community=list()
 size.Community.mean=list()
 size.Community.sd=list()
-for (i in 1:500) {
+for (i in 1:RunLength) {
   names(gran_pop[[i]]$membership) <- 1:node_number
   gran.length <- length(table(gran_pop[[i]]$membership)[table(gran_pop[[i]]$membership) ])
   gran.members <- lapply(1:gran.length, function(x) as.numeric(names(gran_pop[[i]]$membership[gran_pop[[i]]$membership == x])))
@@ -134,14 +155,25 @@ val.comm.size <- c(unlist(size.Community.mean))
 
 par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
 #plot number of communities over time
+pdf('~/granule-model/plot1_test.pdf')
 plot(val.gran,lwd=2, pch=19, col='magenta', 
-     ylab=c('Number of Communities'), xlab=c('Timestep'), type='l' )
+     ylab=c('Number of Communities'), xlab=c('Timestep'), type='l', ylim=c(0, 500) )
+dev.off()
 #plot community size over time
+par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
+pdf('~/granule-model/plot2_test.pdf')
 plot(val.comm.size, lwd=2, cex=0.3, pch=19, 
-     ylab=c('Fraction of Mean Community Size'), xlab=c('Timestep'), type='l')
+     ylab=c('Mean Community Size'), xlab=c('Timestep'), type='l')
+dev.off()
 #plot mRNP over time
+par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
+pdf('~/granule-model/plot3_test.pdf')
 plot(val.RNP, lwd=2, pch=19, col='blue', 
-     ylab=c('Number of Dimers'), xlab=c('Timestep'), type='l' )
+     ylab=c('Number of Dimers'), xlab=c('Timestep'), type='l', ylim=c(0, node_number) )
+dev.off()
 #plot mRNAs over time
+par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
+pdf('~/granule-model/plot4_test.pdf')
 plot(val.mRNA,lwd=2, pch=19, col='red', 
-     ylab=c('Number of mRNA'), xlab=c('Timestep'), type='l' )
+     ylab=c('Number of mRNA'), xlab=c('Timestep'), type='l', ylim=c(0, node_number) )
+dev.off()
