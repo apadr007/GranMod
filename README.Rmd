@@ -1,207 +1,217 @@
 ---
-title: "README"
+title: "Discrete Model"
 author: "Alex Padron"
-date: "October 16, 2016"
+date: "June 1, 2017"
 output: html_document
 ---
 
-# An example of how to run the granule model scripts
+# An example of how to run the discrete granule model scripts
 
 - The granule model is a function that takes a number of parameters. 
-- The number of nodes (node_number) represents the number of mRNAs to begin with. We'll set it to 25. 
-- SpaceMax will symmetrically define the space we'll use to for each simulation.
+- The number of nodes (node_number) represents the number of mRNAs to begin with.
+- SpaceMax will symmetrically define the space we'll use throughout the simulation.
 - A randomly placed empty graph, g.
 - Total_time starting at 1 in this case.
 - final_time to stop simulation at.
-- Probability of two mRNPs binding, P.int.on.
+- Movement of a node is set to the product of a velocity factor (set to 1) and a time component, set to 1e-2
+- Edge formation between nodes is set to the product of a k_on (1e-2) and a time componenet, set to 1e-2
+- The dissociation of two nodes together is set to the product of P.int.off (1e-5) and a time component, set to 1e-2
 
 
 ```{r}
-install.packages('igraph')
+# Load libraries
 library(igraph)
-#if you don't have the following packages installed, install it like this and then load them into your R session using the library function.
+library(reshape2)
 
-#install.packages('Rcpp')
-#install.packages('RcppArmadillo')
-#install.packages('inline')
+# Load granule functions
+load.functions <- list.files('~/granule-functions', full.names = TRUE)
+for (i in 1:length(load.functions)){
+  source(load.functions[i])
+}
 
-#library(Rcpp)
-#library(RcppArmadillo)
-#library(inline)
+# This function needs to be compiled every time. This can be skipped if load.functions is run in the same session
+source('~/granule-functions/layoutOverlapFinder_v.R')
 
-setwd('~/GranMod/')
-load.functions <- list.files('./granule-functions', full.names = TRUE)
 
-#load all of the required functions
-sapply(load.functions, source)
-# note, the Rcpp package will produce a bunch of output when it's loaded that can be ignored for our purposes. 
+set.seed(10)
+#this starts a wall clock if that's important to you
+start.time <- Sys.time()
 
-set.seed(2014)
-node_number = 40
-spaceMax = 10
+#define number of mRNAs & symmetrical simulation space
+node_number = 35
+spaceMax = 15
 
+#make random graph
 g=graph.empty(node_number,directed = FALSE)
-valency = c(1,2,3,4,5,6)
-total_time = 1
-V(g)$color = 'lightblue'
-# prob of binding two mRNP nearby
-P.int.on = 0.6 
-# prob of breaking a bond is automatically defined as the following, but can be set independent of P.int.on, which is probably a better idea. 
-P.int.off = 1-P.int.on 
 
-#layoutGen generates randomly positioned mRNAs
+#color nodes 
+V(g)$color = 'lightblue'
+
+#time step 
+t = 1e-2
+
+#movement
+vel = 1
+sigma = vel*t
+
+#edge formation reaction
+k_on = 1e-1
+sigma.kon = k_on*t
+P.int.on <- sigma.kon
+
+#edge breaking reaction
+P.int.off = 1e-5
+P.int.off <- P.int.off * t
+
+#randomly lay out nodes 
 layout.old = layoutGen(node_number, spaceMax)
 names = 1:node_number
 layout.old = layout.old[[1]][,1:2]
 
+#see the initial empty graph
+plot(g, layout = layout.old,
+       rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
+
+#final simulation step
+RunLength = 100
+
+#make lists to capture informationa about mRNA population size, mRNP population size, granule population size. This also makes lists to capture the graph and layout of the graph at each time step to revisit later if needed (g_list & layout_list)
+gran_pop = vector('list', RunLength)
+mRNP_pop = vector("list", RunLength ) 
+mRNA_pop = vector("list", RunLength ) 
+layout_list = vector("list", RunLength ) 
+g_list = vector("list", RunLength ) 
+
+
 total_time = 1
-final_time = 10
-mRNP_pop = list()
-mRNA_pop = list()
-output <- granule.model(node_number, spaceMax, g, total_time, final_time, P.int.on)
 
 ```
 - mRNAs are defined as edge-less nodes (light blue)
 - mRNPs are defined as nodes with more than 1 node (orange)
-- granules are defined as interacting densely connected regions of interacting mRNPs
+- granules are defined as interacting densely connected regions of interacting mRNPs. This information if found by using the walktrap algorithm to find communities in the graph
+- This starts the simulation after the above parameters have been set
 
-The output is a list with 3 outputs--two lists and output graph, which you can access the following way. In R, different data types can be placed inside a list and lists can be placed inside lists. 
 ```{r}
-mRNP <- output[[1]]
-mRNA <- output[[2]]
-
-val.RNP <- (c(0,unlist(lapply(mRNP, length))))
-val.mRNA <- c(node_number,unlist(lapply(mRNA, length)))
-
-#plot mRNP over time
-par(mfrow=c(2,2))
-plot(val.RNP/max(val.RNP), cex=0.5, pch=19, col='blue', 
-     ylab=c('Fraction of Dimers'), xlab=c('Timestep'))
-#plot mRNAs over time
-plot(val.mRNA/max(val.mRNA),cex=0.5, pch=19, col='red', 
-     ylab=c('Fraction of of mRNA'), xlab=c('Timestep') )
-
-```
-
-#Alternatively, you can run the granule model script directly so as to access aspects of the code more easily.
-```{r}
-set.seed(2014)
-node_number = 40
-spaceMax = 10
-
-g=graph.empty(node_number,directed = FALSE)
-valency = c(1,2,3,4,5,6)
-total_time = 1
-V(g)$color = 'lightblue'
-P.int.on = 0.6
-
-layout.old = layoutGen(node_number, spaceMax)
-names = 1:node_number
-layout.old = layout.old[[1]][,1:2]
-
-plot(g, layout = layout.old,vertex.label='',
-     rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
-
-mRNP_pop = list()
-mRNA_pop = list()
-gran_pop = list()
-
-total_time = 1
-while(total_time <= 10){ 
-  mRNA = 1:node_number 
-  mRNA = which(!mRNA%in%which(degree(g) > 6)) 
-  #move every node 
-  layout.old = nodeMover7d(layout.old, g, node_number, spaceMax)
-   #find the nearest nodes to every other node
-  nearest.mRNA2 = findNearestMovers4(layout.old) # this finds the nearest nodes to every other node
+while(total_time <= RunLength){ 
   
-  nearest.mRNA3 = cleaner.valency2(nearest.mRNA2, P.int.on)
-  #delete an edge if its a neighbor BUT not found in findNearestMovers4
+  mRNA <- sample(1:node_number, 1)
+  
+  #this defines whether to move, form a bond or break a bond
+  whatToDo <- sample(1:3, 1, prob = c(sigma, P.int.on, P.int.off) )
+  
+  if (whatToDo == 1){
+    #this function moves nodes once per time step, assuming whatToDo = 1
+    layout.old = nodeMover10(layout.old, g, node_number, spaceMax)
+   }
+  
+  if (whatToDo == 2){
+    #this randomly selects which nearby node to form an edge to
+    x <- indexLookUp(mRNA, c('A', 'B', 'C', 'D'), layout.old)
+    optionsToBind <- x[layoutOverlapFinder.m(layout.old, x) == 1,]
+    optionsToBind <- `if`(isEmpty(optionsToBind), layout.old[mRNA, ], optionsToBind)
+    optionsToBind <- `if`( is.null( nrow(optionsToBind) ), optionsToBind , optionsToBind[sample(1:nrow(optionsToBind), 1),] )
+    
+     #this is a clean up script from an earlier version and may not be needed anymore. 
+    g <- edgeRemoverSpace(g, layout.old )
+    
+    indexFound <- indexFinder(layout.old, optionsToBind)
+    #this adds edges
+    g = add.edges(g, c(mRNA, indexFound) )
+    g = simplify(g, remove.loops = TRUE)
+  }
+  
+  if (whatToDo == 3){
+    #this randomly deletes edge. Edges are deleted probabilistically, selecting nodes with single edges preferentially to those with more than 1 edge
+    DegreeType <- sample(0:4, size = 1, 
+                         prob = c(P.int.off/1,P.int.off/2, P.int.off/3, 
+                                  P.int.off/4, P.int.off/5) )
+    toDelete.index <- which(degree(g) == DegreeType)
+    if ( !isEmpty(toDelete.index) && DegreeType > 0 ) {
+      toDelete <- sample( toDelete.index, 1)
+      g <- delete_edges(g, E(g)[ from(toDelete) ] )
+    }
+  }
+  
+  #this sets colors for plotting 
+  E(g)$color = 'black'
+  V(g)$color[degree(g) >= 1] <- 'orange'
+  V(g)$color[degree(g) < 1] <- 'lightblue'
+
+  #clean up script
   g <- edgeRemoverSpace(g, layout.old ) 
   
-  for (m in 1:length(mRNA)) {    
-    if ( isTRUE(nearest.mRNA3[[m]] != 0) || !isEmpty(nearest.mRNA3[[m]])) {
-       ### this adds edges
-      for (j in 1:length(nearest.mRNA3[[m]])) {                                         
-        
-        if (isEmpty(nearest.mRNA3[[m]]) == FALSE && isTRUE(degree(g)[nearest.mRNA3[[m]][j]] < 6) ) {  
-          g = add.edges(g, c(mRNA[m], nearest.mRNA3[[m]][j])) } 
-      }
-    } else { next }
-  }
-  #do not allow self edges
-  g = simplify(g, remove.loops = TRUE)
-  E(g)$color = 'black'
+  #plot graph at each step. This will make the run time much longer, but useful to visualize sometimes 
+  #plot(g, layout = layout.old,
+  #     rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
   
-  del.index = which(degree(g) > 8) 
-  if (isEmpty(del.index) == FALSE){
-    for(k in 1:length(del.index)){
-      g = del_edge(g, valToDel = del.index[k])
-    }
-  }
-  #change color if node has edges
-  colorme = which(degree(g) >= 1)
-  staysamecolor = which(degree(g) < 1)
-  if (isEmpty(colorme) == FALSE){
-    for (i in 1:length(colorme)){
-      x = colorme[i]
-      V(g)$color[x] = 'orange'
-    }
-  }
-  
-  
-  if (isEmpty(staysamecolor) == FALSE){
-    for (i in 1:length(staysamecolor)){
-      x = staysamecolor[i]
-      V(g)$color[x] = 'lightblue'
-    }
-  }
-  
-  plot(g, layout = layout.old,vertex.label='',
-     rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
-  
+  #perform walktrap to capture granules
+  gran_pop[[total_time]] = walktrap.community(g)
+  #captures mRNPs (anything with 1 or more edges)
   mRNP_pop[[total_time]] = which(degree(g) >= 1)
+  names(mRNP_pop) <- 'mRNP'
+  #capture mRNAs (anything with 0 edges)
   mRNA_pop[[total_time]] = which(degree(g) < 1)
-  total_time = total_time + 1  
+  names(mRNA_pop) <- 'mRNA'
+  
+  #capture graph and layout
+  layout_list[[total_time]] = layout.old
+  g_list[[total_time]] <- g
+  
+  #print time step
   print(total_time)
-}
+  #move total_time by one
+  total_time = total_time + 1  
+  } 
+
+#print time taken to run 
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
 ```
 
-To find densely connected regions you can use the walktrap algorithm or something equivalent 
-```{r}
-
-colorme = which(degree(g) >= 1)
-for (i in 1:length(colorme)){
-  x = colorme[i]
-  V(g)$color[x] = 'orange'
-}
-
-plot(g, layout = layout.old,vertex.label='',
-     rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
-mRNA.return = length(which(V(g)$color == 'lightblue'))
-g = delete.vertices(g, which(V(g)$color == 'lightblue'))
-###walktrap 
-fg= walktrap.community(g, modularity = TRUE, membership = TRUE)
-V(g)$size = 1
-E(g)$count = 1
-comm.graph <- contract.vertices(g, fg$membership, vertex.attr.comb=list(size="sum", "ignore"))
-comm.graph <- simplify(comm.graph, remove.loops=TRUE, edge.attr.comb=list(count="sum", "ignore"))
-which(vertex.attributes(comm.graph)$size>=1)
-
-for(i in 1:length(which(vertex.attributes(comm.graph)$size >= 1)) ){
-  V(comm.graph)$color[i] = 'orange' 
-}
-E(comm.graph)$color = 'white'
-comm.graph = add.vertices(comm.graph, mRNA.return)
-V(comm.graph)$color[which(V(comm.graph)%in%which(V(comm.graph)$color == 'orange') == FALSE)] = 'lightblue'
-V(comm.graph)$size[which(V(comm.graph)%in%which(V(comm.graph)$size >= 1) == FALSE)] = 1
-plot(comm.graph, vertex.label='')
-```
-
-You can also access the number of granules and their size
+- To find densely connected regions you can use the walktrap algorithm or something equivalent. I like walktrap because it works better for smaller communities than some of the other options available. It works by performing a random walk, and defines a densely connected region based on where it sends more time in.
 
 ```{r}
-gran.num <- length( V(comm.graph)$size[V(comm.graph)$size > 1] ) 
-gran.sizes <- V(comm.graph)$size[V(comm.graph)$size > 1]
+
+#this gets information from the output of the model to plot granules, mRNPs, mRNA numbers
+Num.Community=list()
+size.Community.mean=list()
+size.Community.sd=list()
+
+for (i in 1:RunLength) {
+  names(gran_pop[[i]]$membership) <- 1:node_number
+  gran.length <- length(table(gran_pop[[i]]$membership)[table(gran_pop[[i]]$membership) ])
+  gran.members <- lapply(1:gran.length, function(x) as.numeric(names(gran_pop[[i]]$membership[gran_pop[[i]]$membership == x])))
+  Num.Community[[i]] <- length(unlist(lapply(gran.members, length))[unlist(lapply(gran.members, length)) ])
+  size.Community.mean[[i]] <- mean(unlist(lapply(gran.members,length)))
+  size.Community.sd[[i]] <- sd(unlist(lapply(gran.members,length)))
+  }
+
+
+#prepare for plotting
+
+val.gran <- c(node_number, unlist(Num.Community))
+val.RNP <- (c(0,unlist(lapply(mRNP_pop, length))))
+val.mRNA <- c(node_number,unlist(lapply(mRNA_pop, length)))
+val.comm.size <- c(unlist(size.Community.mean))
+
+par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
+#plot number of communities over time
+plot(val.gran,lwd=2, pch=19, col='magenta', 
+     ylab=c('Number of Granules'), xlab=c('Timestep'), type='l', ylim=c(0, 500) )
+
+par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
+plot(val.comm.size, lwd=2, cex=0.3, pch=19, 
+     ylab=c('Mean Granule Size'), xlab=c('Timestep'), type='l')
+
+#plot mRNP over time
+par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
+plot(val.RNP, lwd=2, pch=19, col='blue', 
+     ylab=c('Number of mRNPs'), xlab=c('Timestep'), type='l', ylim=c(0, node_number) )
+
+#plot mRNAs over time
+par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
+plot(val.mRNA,lwd=2, pch=19, col='red', 
+     ylab=c('Number of mRNAs'), xlab=c('Timestep'), type='l', ylim=c(0, node_number) )
 
 ```
