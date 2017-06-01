@@ -1,42 +1,83 @@
-source('~/granule-functions/layoutOverlapFinder_v.R')
+---
+title: "Hybrid Discrete Model"
+author: "Alex Padron"
+date: "6/1/2017"
+output: html_document
+---
+
+# An example of how to run the hybrid discrete granule model scripts
+
+- This model allows for either movement or association or disassociation at each time step, but not all three
+- The granule model is a function that takes a number of parameters. 
+- The number of nodes (node_number) represents the number of mRNAs to begin with.
+- SpaceMax will symmetrically define the space we'll use throughout the simulation.
+- A randomly placed empty graph, g.
+- Total_time starting at 1 in this case.
+- final_time to stop simulation at.
+- Movement of a node is set to the product of a velocity factor (set to 1) and a time component, set to 1e-3
+- Edge formation between nodes is set to the product of a k_on and a time componenet, set to 1e-3
+- The dissociation of two nodes together is set to the product of P.int.off and a time component, set to 1e-3
+
+
+```{r}
+# Load libraries
 library(igraph)
 library(reshape2)
 
-set.seed(10)
-node_number = 20
-spaceMax = 10
+# Load granule functions
+load.functions <- list.files('~/granule-functions', full.names = TRUE)
+for (i in 1:length(load.functions)){
+  source(load.functions[i])
+}
 
+# This function needs to be compiled every time. This can be skipped if load.functions is run in the same session
+source('~/granule-functions/layoutOverlapFinder_v.R')
+
+
+set.seed(10)
+#this starts a wall clock if that's important to you
+start.time <- Sys.time()
+
+#define number of mRNAs & symmetrical simulation space
+node_number = 500
+spaceMax = 60
+
+#make random graph
 g=graph.empty(node_number,directed = FALSE)
 
-
-total_time = 1
+#color nodes 
 V(g)$color = 'lightblue'
-#P.int.on = 0.1
 
-#time 
+#time step 
 t = 1e-3
 
 #movement
 vel = 1
 sigma = vel*t
 
-#reaction
+#edge formation reaction
 k_on = 1e-2
 sigma.kon = k_on*t
 P.int.on <- sigma.kon
-#reaction
+
+#edge breaking reaction
 P.int.off = 1e-5
 P.int.off <- P.int.off * t
 
+#randomly lay out nodes 
 layout.old = layoutGen(node_number, spaceMax)
 names = 1:node_number
 layout.old = layout.old[[1]][,1:2]
 
+#see the initial empty graph
 plot(g, layout = layout.old,
        rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
 
+#final simulation step
 RunLength = 500
 
+#make lists to capture informationa about mRNA population size, mRNP population size, granule population size. This also makes lists to capture the graph and layout of the graph at each time step to revisit later if needed (g_list & layout_list)
+gran_pop = vector('list', RunLength)
 mRNP_pop = vector("list", RunLength ) 
 mRNA_pop = vector("list", RunLength ) 
 layout_list = vector("list", RunLength ) 
@@ -45,37 +86,39 @@ g_list = vector("list", RunLength )
 
 total_time = 1
 
+```
+- mRNAs are defined as edge-less nodes (light blue)
+- mRNPs are defined as nodes with more than 1 node (orange)
+- granules are defined as interacting densely connected regions of interacting mRNPs. This information if found by using the walktrap algorithm to find communities in the graph
+- This starts the simulation after the above parameters have been set
+
+```{r}
 while(total_time <= RunLength){ 
   mRNA = 1:node_number
-  
-  mRNA = which(!mRNA%in%which(degree(g) > 4))
-  
+
   whatToDo <- sample(1:3, 1, prob = c(sigma, P.int.on, P.int.off) )
-  
-  #sigma.test <- sample(c(TRUE,FALSE), size = 1, prob = c(sigma, 1-sigma))
-  #if (sigma.test == TRUE){
   
   if (whatToDo == 1){
     layout.old = nodeMover9(layout.old, g, node_number, spaceMax)
-   }
+  }
   
   if (whatToDo == 2){
     # this finds the nearest nodes to every other node
     nearest.mRNA2 = myDistOneFast(layout.old) 
-  
+    
     nearest.mRNA2[ sapply(nearest.mRNA2, is.null) ] <- NA
     
     nearest.mRNA2 <- as.list(nearest.mRNA2)
-  
+    
     nearest.mRNA3 = cleaner.valency4(nearest.mRNA2, P.int.on)
     #this deletes an edge if its a neighbor BUT not found in findNearestMovers
-    g <- edgeRemoverSpace2(g, layout.old ) 
+    g <- edgeRemoverSpace(g, layout.old ) 
     
     
     nearest.mRNA3 <- melt(nearest.mRNA3, na.rm = TRUE)
     nearest.mRNA3 <- as.matrix(nearest.mRNA3)
     g = add.edges(g, t(nearest.mRNA3) )
-  
+    
     g = simplify(g, remove.loops = TRUE)
   }
   
@@ -95,11 +138,11 @@ while(total_time <= RunLength){
   
   V(g)$color[degree(g) >= 1] <- 'orange'
   V(g)$color[degree(g) < 1] <- 'lightblue'
-
-  g <- edgeRemoverSpace2(g, layout.old ) 
   
-  plot(g, layout = layout.old,
-       rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
+  g <- edgeRemoverSpace(g, layout.old ) 
+  
+  #plot(g, layout = layout.old,
+  #    rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
   
   gran_pop[[total_time]] = walktrap.community(g)
   mRNP_pop[[total_time]] = which(degree(g) >= 1)
@@ -112,20 +155,20 @@ while(total_time <= RunLength){
   print(total_time)
   
   total_time = total_time + 1  
-
-  } 
+  
+} 
 
 Num.Community=list()
 size.Community.mean=list()
 size.Community.sd=list()
-for (i in 1:500) {
+for (i in 1:RunLength) {
   names(gran_pop[[i]]$membership) <- 1:node_number
   gran.length <- length(table(gran_pop[[i]]$membership)[table(gran_pop[[i]]$membership) ])
   gran.members <- lapply(1:gran.length, function(x) as.numeric(names(gran_pop[[i]]$membership[gran_pop[[i]]$membership == x])))
   Num.Community[[i]] <- length(unlist(lapply(gran.members, length))[unlist(lapply(gran.members, length)) ])
   size.Community.mean[[i]] <- mean(unlist(lapply(gran.members,length)))
   size.Community.sd[[i]] <- sd(unlist(lapply(gran.members,length)))
-  }
+}
 
 val.gran <- c(node_number, unlist(Num.Community))
 val.RNP <- (c(0,unlist(lapply(mRNP_pop, length))))
@@ -135,13 +178,16 @@ val.comm.size <- c(unlist(size.Community.mean))
 par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
 #plot number of communities over time
 plot(val.gran,lwd=2, pch=19, col='magenta', 
-     ylab=c('Number of Communities'), xlab=c('Timestep'), type='l' )
+     ylab=c('Number of Granules'), xlab=c('Timestep'), type='l' )
 #plot community size over time
 plot(val.comm.size, lwd=2, cex=0.3, pch=19, 
-     ylab=c('Fraction of Mean Community Size'), xlab=c('Timestep'), type='l')
+     ylab=c('Mean Granule Size'), xlab=c('Timestep'), type='l')
 #plot mRNP over time
 plot(val.RNP, lwd=2, pch=19, col='blue', 
-     ylab=c('Number of Dimers'), xlab=c('Timestep'), type='l' )
+     ylab=c('Number of mRNPs'), xlab=c('Timestep'), type='l' )
 #plot mRNAs over time
 plot(val.mRNA,lwd=2, pch=19, col='red', 
-     ylab=c('Number of mRNA'), xlab=c('Timestep'), type='l' )
+     ylab=c('Number of mRNAs'), xlab=c('Timestep'), type='l' )
+
+```
+
