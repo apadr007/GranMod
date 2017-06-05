@@ -13,11 +13,11 @@ nodeMover10 <- function(layout.old, g, node_number, spaceMax){
   out = list()
   possibleMoves = 1:4
   
-#  vx = 1
-#  vy = 1
-#  t = 1e-3
-#  sigma.x = vx*t
-#  sigma.y = vy*t
+  #  vx = 1
+  #  vy = 1
+  #  t = 1e-3
+  #  sigma.x = vx*t
+  #  sigma.y = vy*t
   
   for (move in indexSelector) {
     
@@ -26,17 +26,7 @@ nodeMover10 <- function(layout.old, g, node_number, spaceMax){
     x1 = NA; x2 = NA; y1 = NA; y2 = NA; v = NA; v3 = NA
     direction = NA; A=NA;B=NA;C=NA;D=NA; truefalse = NA
     x10.dupName = NA; idx.val3=NA
-    
-    #print(move)
-    #sigma.test.x <- sample(c(TRUE,FALSE), size = 1, prob = c(sigma.x, 1-sigma.x))
-    #sigma.test.y <- sample(c(TRUE,FALSE), size = 1, prob = c(sigma.y, 1-sigma.y))
-    
-    #sigma.test = c(sigma.test.x, sigma.test.y)
-    #if (all(sigma.test)==FALSE) next
-    
-    #val.x <- ifelse(sigma.test.x, 1, 0)
-    #val.y <- ifelse(sigma.test.y, 1, 0)
-    
+  
     mover <- gran.members[[move]][1]
     v.old <- layout.old[mover, ]
     x = layout.old[mover,1]
@@ -87,9 +77,13 @@ nodeMover10 <- function(layout.old, g, node_number, spaceMax){
       # print(posit.move)
       df.list = reflectFunc2b(layout.old[gran.members[[move]], ], spaceMax, posit.move)
       
-      
       df.list_1 = df.list[[1]]
       posit.move = df.list[[2]]
+      
+      if ( any(rowSums( abs(df.list_1 - layout.old[gran.members[[move]], ]) ) > 1) ) {
+        df.list = layout.old[gran.members[[move]], ]
+      }
+      
       boundResp <- indexLookUp3(df.list_1, posit.move, spaceMax)
       
       df.list <- boundResp[[1]]

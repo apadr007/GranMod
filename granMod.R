@@ -1,4 +1,5 @@
-#source('~/granule-functions/layoutOverlapFinder_v.R')
+source('~/granule-functions/layoutOverlapFinder_v.R')
+source('~/granule-functions/matrixIndex.R')
 library(igraph)
 library(reshape2)
 
@@ -10,8 +11,8 @@ for (i in 1:length(load.functions)){
 
 set.seed(10)
 start.time <- Sys.time()
-node_number = 500
-spaceMax = 40
+node_number = 80
+spaceMax = 10
 
 
 g=graph.empty(node_number,directed = FALSE)
@@ -22,18 +23,18 @@ V(g)$color = 'lightblue'
 #P.int.on = 0.1
 
 #time 
-t = 1e-2
+t = 1e-3
 
 #movement
-vel = 1
+vel = 5e-1
 sigma = vel*t
 
 #reaction
-k_on = 1e-1
+k_on = 1e-2
 sigma.kon = k_on*t
 P.int.on <- sigma.kon
 #reaction
-P.int.off = 1e-5
+P.int.off = 1e-2
 P.int.off <- P.int.off * t
 
 layout.old = layoutGen(node_number, spaceMax)
@@ -48,7 +49,7 @@ plot(g, layout = layout.old,
 #get total length 
 #RunLength = length(Run)
 #nodez <- Run
-RunLength = 1000
+RunLength = 200
 
 gran_pop = vector('list', RunLength)
 mRNP_pop = vector("list", RunLength ) 
@@ -60,41 +61,55 @@ g_list = vector("list", RunLength )
 total_time = 1
 
 while(total_time <= RunLength){ 
-  #mRNA = 1:node_number
-  #mRNA = which(!mRNA%in%which(degree(g) > 4))
   
-  mRNA <- sample(1:20, 1)
   whatToDo <- sample(1:3, 1, prob = c(sigma, P.int.on, P.int.off) )
-  
-  #sigma.test <- sample(c(TRUE,FALSE), size = 1, prob = c(sigma, 1-sigma))
-  #if (sigma.test == TRUE){
   
   if (whatToDo == 1){
     layout.old = nodeMover10(layout.old, g, node_number, spaceMax)
    }
   
   if (whatToDo == 2){
-    # this finds the nearest nodes to every other node
-    #nearest.mRNA2 = myDistOneFast(layout.old) 
-    #nearest.mRNA2[ sapply(nearest.mRNA2, is.null) ] <- NA
-    #nearest.mRNA2 <- as.list(nearest.mRNA2)
     
-    x <- indexLookUp(mRNA, c('A', 'B', 'C', 'D'), layout.old)
-    optionsToBind <- x[layoutOverlapFinder.m(layout.old, x) == 1,]
-    optionsToBind <- `if`(isEmpty(optionsToBind), layout.old[mRNA, ], optionsToBind)
-    optionsToBind <- `if`( is.null( nrow(optionsToBind) ), optionsToBind , optionsToBind[sample(1:nrow(optionsToBind), 1),] )
+    #this randomly deletes edge 
+    DegreeType <- sample(0:4, size = 1, 
+                         prob = c(P.int.on/5,P.int.on/4, P.int.on/3, 
+                                  P.int.on/2, P.int.on/1) )
     
-    #nearest.mRNA3 = cleaner.valency4(nearest.mRNA2, P.int.on)
-    #this deletes an edge if its a neighbor BUT not found in findNearestMovers
-    g <- edgeRemoverSpace3(g, layout.old )
+    toBind.index <-  which(degree(g) == DegreeType)
+    if ( !isEmpty(toBind.index) && DegreeType >= 0 ) {
+      toBind <- sample( toBind.index, 1)
+      mRNA <- sample(1:node_number, 1)
     
-    #nearest.mRNA3 <- melt(nearest.mRNA3, na.rm = TRUE)
-    #nearest.mRNA3 <- melt(optionsToBind, na.rm = TRUE)
-    #nearest.mRNA3 <- as.matrix(nearest.mRNA3)
-    indexFound <- indexFinder(layout.old, optionsToBind)
-    g = add.edges(g, c(mRNA, indexFound) )
-    g = simplify(g, remove.loops = TRUE)
+      x <- indexLookUp(mRNA, c('A', 'B', 'C', 'D'), layout.old)
+      optionsToBind <- x[layoutOverlapFinder.m(layout.old, x) == 1,]
+      optionsToBind <- `if`(isEmpty(optionsToBind), layout.old[mRNA, ], optionsToBind)
+    
+    if ( is.null( nrow(optionsToBind) ) ) {
+      indexFound <- indexFinder(layout.old, optionsToBind)
+      g = add.edges(g, c(mRNA, indexFound) )
+      g = simplify(g, remove.loops = TRUE) } else { 
+        # this matches position to index using Rcpp. Function needs to be compiled every time
+        NodeOptions <- matrixIndex(optionsToBind, layout.old)
+        NodeOptions <- NodeOptions[NodeOptions != 0]
+        
+        #this finds the degrees of the available mRNPs to bind to
+        degreeTypesAvailable <- degree(g)[NodeOptions]
+        
+        # this preferentially selects higher degrees than lower degree nearby nodes to form
+        degreeTypesAvailable.selected <- sample(degreeTypesAvailable, 1, 
+               prob = c( mRNP_selector_prob(degreeTypesAvailable, P.int.on) ) )
+        degreeTypesAvailable.indx <- sample(which(degreeTypesAvailable == degreeTypesAvailable.selected, arr.ind = TRUE), 1)
+        
+        NewEdgeNode <- NodeOptions[degreeTypesAvailable.indx]
+        g = add.edges(g, c(mRNA, NewEdgeNode) )
+        g = simplify(g, remove.loops = TRUE)
+      }
+    }
   }
+    
+     #this deletes an edge if its a neighbor BUT not found in findNearestMovers
+    #g <- edgeRemoverSpace(g, layout.old )
+    
   
   if (whatToDo == 3){
     #this randomly deletes edge 
@@ -113,10 +128,10 @@ while(total_time <= RunLength){
   V(g)$color[degree(g) >= 1] <- 'orange'
   V(g)$color[degree(g) < 1] <- 'lightblue'
 
-  g <- edgeRemoverSpace3(g, layout.old ) 
+  g <- edgeRemoverSpace(g, layout.old ) 
   
- # plot(g, layout = layout.old,
- #      rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
+  #plot(g, layout = layout.old,
+  #     rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
   
   gran_pop[[total_time]] = walktrap.community(g)
   mRNP_pop[[total_time]] = which(degree(g) >= 1)
@@ -157,7 +172,7 @@ par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
 #plot number of communities over time
 pdf('~/granule-model/plot1_test.pdf')
 plot(val.gran,lwd=2, pch=19, col='magenta', 
-     ylab=c('Number of Communities'), xlab=c('Timestep'), type='l', ylim=c(0, 500) )
+     ylab=c('Number of Communities'), xlab=c('Timestep'), type='l' )
 dev.off()
 #plot community size over time
 par(pin=c(2,2), tcl=0.25, ps=9, family="Helvetica")
