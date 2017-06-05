@@ -31,6 +31,7 @@ for (i in 1:length(load.functions)){
 
 # This function needs to be compiled every time. This can be skipped if load.functions is run in the same session
 source('~/granule-functions/layoutOverlapFinder_v.R')
+source('~/granule-functions/matrixIndex.R')
 
 
 set.seed(10)
@@ -94,34 +95,58 @@ total_time = 1
 ```{r}
 while(total_time <= RunLength){ 
   
-  mRNA <- sample(1:node_number, 1)
-  
-  #this defines whether to move, form a bond or break a bond
   whatToDo <- sample(1:3, 1, prob = c(sigma, P.int.on, P.int.off) )
   
   if (whatToDo == 1){
-    #this function moves nodes once per time step, assuming whatToDo = 1
+    #moves nodes one at a time 
     layout.old = nodeMover10(layout.old, g, node_number, spaceMax)
    }
   
   if (whatToDo == 2){
-    #this randomly selects which nearby node to form an edge to
-    x <- indexLookUp(mRNA, c('A', 'B', 'C', 'D'), layout.old)
-    optionsToBind <- x[layoutOverlapFinder.m(layout.old, x) == 1,]
-    optionsToBind <- `if`(isEmpty(optionsToBind), layout.old[mRNA, ], optionsToBind)
-    optionsToBind <- `if`( is.null( nrow(optionsToBind) ), optionsToBind , optionsToBind[sample(1:nrow(optionsToBind), 1),] )
     
-     #this is a clean up script from an earlier version and may not be needed anymore. 
-    g <- edgeRemoverSpace(g, layout.old )
+    #this randomly adds edge 
+    DegreeType <- sample(0:4, size = 1, 
+                         prob = c(P.int.on/5,P.int.on/4, P.int.on/3, 
+                                  P.int.on/2, P.int.on/1) )
     
-    indexFound <- indexFinder(layout.old, optionsToBind)
-    #this adds edges
-    g = add.edges(g, c(mRNA, indexFound) )
-    g = simplify(g, remove.loops = TRUE)
+    toBind.index <-  which(degree(g) == DegreeType)
+    if ( !isEmpty(toBind.index) && DegreeType >= 0 ) {
+      toBind <- sample( toBind.index, 1)
+      mRNA <- sample(1:node_number, 1)
+    
+      x <- indexLookUp(mRNA, c('A', 'B', 'C', 'D'), layout.old)
+      optionsToBind <- x[layoutOverlapFinder.m(layout.old, x) == 1,]
+      optionsToBind <- `if`(isEmpty(optionsToBind), layout.old[mRNA, ], optionsToBind)
+    
+    if ( is.null( nrow(optionsToBind) ) ) {
+      indexFound <- indexFinder(layout.old, optionsToBind)
+      g = add.edges(g, c(mRNA, indexFound) )
+      g = simplify(g, remove.loops = TRUE) } else { 
+        # this matches position to index using Rcpp. Function needs to be compiled every time
+        NodeOptions <- matrixIndex(optionsToBind, layout.old)
+        NodeOptions <- NodeOptions[NodeOptions != 0]
+        
+        #this finds the degrees of the available mRNPs to bind to
+        degreeTypesAvailable <- degree(g)[NodeOptions]
+        
+        # this preferentially selects higher degrees than lower degree nearby nodes to form
+        degreeTypesAvailable.selected <- sample(degreeTypesAvailable, 1, 
+               prob = c( mRNP_selector_prob(degreeTypesAvailable, P.int.on) ) )
+        degreeTypesAvailable.indx <- sample(which(degreeTypesAvailable == degreeTypesAvailable.selected, arr.ind = TRUE), 1)
+        
+        NewEdgeNode <- NodeOptions[degreeTypesAvailable.indx]
+        g = add.edges(g, c(mRNA, NewEdgeNode) )
+        g = simplify(g, remove.loops = TRUE)
+      }
+    }
   }
+    
+     #this deletes an edge if its a neighbor BUT not found in findNearestMovers
+    #g <- edgeRemoverSpace(g, layout.old )
+    
   
   if (whatToDo == 3){
-    #this randomly deletes edge. Edges are deleted probabilistically, selecting nodes with single edges preferentially to those with more than 1 edge
+    #this randomly deletes edge 
     DegreeType <- sample(0:4, size = 1, 
                          prob = c(P.int.off/1,P.int.off/2, P.int.off/3, 
                                   P.int.off/4, P.int.off/5) )
@@ -132,35 +157,28 @@ while(total_time <= RunLength){
     }
   }
   
-  #this sets colors for plotting 
   E(g)$color = 'black'
+  
   V(g)$color[degree(g) >= 1] <- 'orange'
   V(g)$color[degree(g) < 1] <- 'lightblue'
 
-  #clean up script
   g <- edgeRemoverSpace(g, layout.old ) 
   
-  #plot graph at each step. This will make the run time much longer, but useful to visualize sometimes 
   #plot(g, layout = layout.old,
   #     rescale = F, axes=TRUE, xlim=c(0,spaceMax), ylim=c(0,spaceMax), asp = 0 )
   
-  #perform walktrap to capture granules
   gran_pop[[total_time]] = walktrap.community(g)
-  #captures mRNPs (anything with 1 or more edges)
   mRNP_pop[[total_time]] = which(degree(g) >= 1)
   names(mRNP_pop) <- 'mRNP'
-  #capture mRNAs (anything with 0 edges)
   mRNA_pop[[total_time]] = which(degree(g) < 1)
   names(mRNA_pop) <- 'mRNA'
-  
-  #capture graph and layout
   layout_list[[total_time]] = layout.old
   g_list[[total_time]] <- g
   
-  #print time step
   print(total_time)
-  #move total_time by one
+  
   total_time = total_time + 1  
+
   } 
 
 #print time taken to run 
